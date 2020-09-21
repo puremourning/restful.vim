@@ -27,7 +27,7 @@ This is work in progress/toy, not ready to be used for anything yet.
 Both are implemented :
 
 * `restful#` functions are legacy vimscript
-* `http8#` functions are vim9 API is the same
+* `http9#` functions are vim9 API is the same
 
 # Usage
 
