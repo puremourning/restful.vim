@@ -92,29 +92,3 @@ function! restful#POST( host, port, uri, headers, payload, callback ) abort
   call ch_sendraw( ch, s:CRLF )
   call ch_sendraw( ch, data )
 endfunction
-
-function! Callback( status_code, headers, body )
-  echom "CALLED"
-  call popup_dialog( [ 'status_code: ' . string( a:status_code ),
-                     \ 'headers: ' . string( a:headers ),
-                     \ 'body: ' . string( a:body ) ], {} )
-endfunction
-
-function! TestGet()
-  call restful#GET( 'localhost',
-                  \ 25000,
-                  \ '/',
-                  \ #{ Test: 'header' },
-                  \ function( 'Callback' ) )
-endfunction
-
-function! TestPost()
-  call restful#POST( 'localhost',
-                   \ 25000,
-                   \ '/eat',
-                   \ #{ Test: 'header' },
-                   \ #{ food: 'apple', drink: 'water' },
-                   \ function( 'Callback' ) )
-endfunction
-
-call TestPost()
