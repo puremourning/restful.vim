@@ -12,7 +12,11 @@ Answer: yes we can
 
 Experiment: Can we write it in vim9script ?
 
-Answer: yes we can
+Answer: yes we can... nearly. Seems there are some crazy shenanigans when a vim9script callback invokes a legacy vimscript function (e.g. 
+
+```
+Caught exception in Test_Compl_After_Trigger(): Vim(py3):vim.error: Vim(redir):E1016: Cannot declare a buffer variable: b:ycm_command @ /Users/ben/.vim/bundle/YouCompleteMe/test/completion_info.test.vim:command line..script /Users/ben/.vim/bundle/YouCompleteMe/test/lib/run_test.vim[376]..function RunTheTest[66]..Test_Compl_After_Trigger[1]..youcompleteme#test#setup#OpenFile[30]..<SNR>37_OnClose[26]..<SNR>37_Resolve, line 12
+```
 
 # Status
 
