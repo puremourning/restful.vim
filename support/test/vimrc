@@ -1,0 +1,45 @@
+let &runtimepath ..= ',' .. expand( '<sfile>:p:h:h:h' )
+
+function! Callback( id, status_code, headers, body )
+  echom "CALLED"
+  call popup_dialog( [ 'status_code: ' . string( a:status_code ),
+                     \ 'headers: ' . string( a:headers ),
+                     \ 'body: ' . string( a:body ) ], {} )
+endfunction
+
+
+function! TestGet()
+  call restful#GET( 'localhost',
+                  \ 25000,
+                  \ '/',
+                  \ 'test=t',
+                  \ #{ Test: 'header' },
+                  \ function( 'Callback' ) )
+endfunction
+
+function! TestPost()
+  call restful#POST( 'localhost',
+                   \ 25000,
+                   \ '/eat',
+                   \ #{ Test: 'header' },
+                   \ #{ food: 'apple', drink: 'water' },
+                   \ function( 'Callback' ) )
+endfunction
+
+function! TestGet9()
+  call http9#GET( 'localhost',
+                  \ 25000,
+                  \ '/',
+                  \ 'test=t',
+                  \ #{ Test: 'header' },
+                  \ function( 'Callback' ) )
+endfunction
+
+function! TestPost9()
+  call http9#POST( 'localhost',
+                   \ 25000,
+                   \ '/eat',
+                   \ #{ Test: 'header' },
+                   \ string( #{ food: 'apple', drink: 'water' } ),
+                   \ function( 'Callback' ) )
+endfunction

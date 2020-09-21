@@ -1,38 +1,50 @@
-" restful.vim - A REST client in pure vimscript
-" Copyright 2020 Ben Jackson
-"
-" Licensed under the Apache License, Version 2.0 (the "License");
-" you may not use this file except in compliance with the License.
-" You may obtain a copy of the License at
-"
-"   http://www.apache.org/licenses/LICENSE-2.0
-"
-" Unless required by applicable law or agreed to in writing, software
-" distributed under the License is distributed on an "AS IS" BASIS,
-" WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-" See the License for the specific language governing permissions and
-" limitations under the License.
+" This is basic vim plugin boilerplate
+let s:save_cpo = &cpo
+set cpo&vim
 
-let s:CRLF = "\r\n"
-
-let s:request_state = {}
-
-function! s:OnData( callback, channel, msg )
-  echom "DATA"
-  let s:request_state[ ch_info( a:channel ).id ].data .= a:msg
+function! restful#GET( host, port, uri, query_string, headers, callback )
+  let uri = a:uri
+  if a:query_string != ''
+    let uri .= '?' . a:query_string
+  endif
+  return s:Write( 'GET', a:host, a:port, uri, a:headers, '', a:callback )
 endfunction
 
-function! s:OnClose( callback, channel )
-  echom "CLOSE"
-  let data = s:request_state[ ch_info( a:channel ).id ].data
-  unlet s:request_state[ ch_info( a:channel ).id ]
-  let bounary = match( data, s:CRLF . s:CRLF )
-  if bounary < 0
-    throw "Invalid data: " . data
-  endif
+function! restful#POST( host, port, uri, headers, data, callback )
+  let data = json_encode( a:data )
+  return s:Write( 'POST', a:host, a:port, a:uri, a:headers, data, a:callback )
+endfunction
 
-  let header = data[ 0:(bounary - 1) ]
-  let body = data[ bounary + 2*len( s:CRLF ): ]
+" Blocking reads are a little tricky, as we normaly handle the data when the
+" socket closes. We therefore block while the channel is open and manually
+" invoke the Close callback. Of course that requires us to unset the usual close
+" callback on the channel, as this is raised, _after_ this function returns.
+function! restful#Block( id, timeout )
+  let ch = s:request_state[ a:id ].handle
+  call ch_setoptions( ch, { 'close_cb': '' } )
+  while count( [ 'open', 'buffered' ],  ch_status( ch ) ) == 1
+    let data = ch_read( ch, { 'timeout': a:timeout } )
+    let s:request_state[ a:id ].data .= data
+  endwhile
+  call s:OnClose( ch )
+endfunction
+
+let s:request_state = {}
+let s:CRLF = "\r\n"
+
+function! s:OnData( channel, msg )
+  let id =  ch_info( a:channel ).id
+  let s:request_state[ id ].data .= a:msg
+endfunction
+
+function! s:OnClose( channel )
+  let id = ch_info( a:channel ).id
+  let state = s:request_state[ id ]
+  unlet s:request_state[ id ]
+  let bounary = match( state.data, s:CRLF . s:CRLF )
+
+  let header = state.data[ 0:(bounary - 1) ]
+  let body = state.data[ bounary + 2*len( s:CRLF ): ]
 
   let headers = split( header, s:CRLF )
   let status_line = headers[ 0 ]
@@ -41,54 +53,50 @@ function! s:OnClose( callback, channel )
   let header_map = {}
   for header in headers
     let colon = match( header, ':' )
-    let header_map[ header[ : colon-1 ] ] = trim( header[ colon+1: ] )
+    let header_map[ tolower( header[ : colon-1 ] ) ]
+          \ = trim( header[ colon+1: ] )
   endfor
 
   let status_code = split( status_line )[ 1 ]
 
-  call a:callback( status_code, header_map, json_decode( body ) )
+  eval call( state.callback, [ id, status_code, header_map, body ] )
 endfunction
 
-
-function! restful#GET( host, port, uri, headers, callback ) abort
-
+function! s:Write( method, host, port, uri, headers, data, callback )
   let ch = ch_open( a:host . ':' . a:port, #{
         \ mode: 'raw',
-        \ callback: funcref( 's:OnData', [ a:callback ] ),
-        \ close_cb: funcref( 's:OnClose', [ a:callback ] ),
-        \ waittime: 1000,
+        \ callback: funcref( 's:OnData' ),
+        \ close_cb: funcref( 's:OnClose' ),
+        \ waittime: 100,
         \ } )
-  let s:request_state[ ch_info( ch ).id ] = #{ data: '' }
 
-  call ch_sendraw( ch, 'GET ' . a:uri . ' HTTP/1.1' . s:CRLF )
-  call ch_sendraw( ch, 'Host: ' . a:host . s:CRLF )
-  call ch_sendraw( ch, 'Connection: close' . s:CRLF )
-  call ch_sendraw( ch, 'Accept: application/json' . s:CRLF )
+  if ch_status( ch ) != 'open'
+    return v:none
+  endif
+
+  let id = ch_info( ch ).id
+  let s:request_state[ id ] = #{ data: '', handle: ch, callback: a:callback }
+
+  let a:headers[ 'Host' ] = a:host
+  let a:headers[ 'Connection' ] = 'close'
+  let a:headers[ 'Accept' ] = 'application/json'
+  if !empty( a:data )
+    let a:headers[ 'Content-Length' ] = string( len( a:data ) )
+  endif
+
+  let msg = a:method . ' '. a:uri . ' HTTP/1.1' . s:CRLF
   for h in keys( a:headers )
-    call ch_sendraw( ch, h . ':' . a:headers[ h ] . s:CRLF )
+    let msg .= h . ':' . a:headers[ h ] . s:CRLF
   endfor
-  call ch_sendraw( ch, s:CRLF )
+  let msg .= s:CRLF
+  let msg .= a:data
+  call ch_sendraw( ch, msg )
+  return id
 endfunction
 
-function! restful#POST( host, port, uri, headers, payload, callback ) abort
-  let ch = ch_open( a:host . ':' . a:port, #{
-        \ mode: 'raw',
-        \ callback: funcref( 's:OnData', [ a:callback ] ),
-        \ close_cb: funcref( 's:OnClose', [ a:callback ] ),
-        \ waittime: 1000,
-        \ } )
-  let s:request_state[ ch_info( ch ).id ] = #{ data: '' }
+" This is basic vim plugin boilerplate
+let &cpo = s:save_cpo
+unlet s:save_cpo
 
-  let data = json_encode( a:payload )
+" vim: filetype=vim.python foldmethod=marker
 
-  call ch_sendraw( ch, 'POST ' . a:uri . ' HTTP/1.1' . s:CRLF )
-  call ch_sendraw( ch, 'Host: ' . a:host . s:CRLF )
-  call ch_sendraw( ch, 'Connection: close' . s:CRLF )
-  call ch_sendraw( ch, 'Content-Length: ' . len( data ) . s:CRLF )
-  call ch_sendraw( ch, 'Accept: application/json' . s:CRLF )
-  for h in keys( a:headers )
-    call ch_sendraw( ch, h . ':' . a:headers[ h ] . s:CRLF )
-  endfor
-  call ch_sendraw( ch, s:CRLF )
-  call ch_sendraw( ch, data )
-endfunction

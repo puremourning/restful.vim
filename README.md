@@ -35,10 +35,14 @@ Call `restful#GET`, `restful#POST`, `http9#GET`, `http9#POST` passing:
 
 * `host`, `port`
 * `URI` - full URI including query string
+* `query_string` - any query string to add for GET requests (must be urlencoded)
 * `headers` as a dictionary mapping header to value
 * `payload` as a dictionary to be converted to JSON and sent as the request body
-* `callback` a Funcref taking `( status_code, headers, message )`. Message is a
+* `callback` a Funcref taking `( id, status_code, headers, message )`. Message is a
   dictionary decoded from the response body JSON.
 
+All return a request ID, which can be used e.g. in the Block call.
 
+Call `restful#Block` or `http9#Block` to wait for a particualr request to
+complete (and its callback to be called)
 
