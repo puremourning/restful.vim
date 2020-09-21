@@ -8,13 +8,26 @@ payloads only and very limited HTTP implementation.
 Experiment: Can we write the YouCompleteMe client in pure vimscript, and stop
 using python requests/timers?
 
+Answer: yes we can
+
+Experiment: Can we write it in vim9script ?
+
+Answer: yes we can
+
 # Status
 
 This is work in progress/toy, not ready to be used for anything yet.
 
+# Legacy Vimscript or Vim9script
+
+Both are implemented :
+
+* `restful#` functions are legacy vimscript
+* `http8#` functions are vim9 API is the same
+
 # Usage
 
-Call `restful#GET` or `restful#POST` passing:
+Call `restful#GET`, `restful#POST`, `http9#GET`, `http9#POST` passing:
 
 * `host`, `port`
 * `URI` - full URI including query string
@@ -22,5 +35,6 @@ Call `restful#GET` or `restful#POST` passing:
 * `payload` as a dictionary to be converted to JSON and sent as the request body
 * `callback` a Funcref taking `( status_code, headers, message )`. Message is a
   dictionary decoded from the response body JSON.
+
 
 
